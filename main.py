@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field  #%
+from typing import Optional, List  #%
 import random
 import numpy as np
 import graphviz
@@ -12,210 +12,132 @@ import os
 @dataclass
 class Place:
     id: int
-    name: Optional['str'] = None
+    name: Optional[str] = None
     tokens: int = 0
-    next: Optional['Place'] = None
 
 @dataclass
 class Arc:
     weight: int
     place: Place
-    next: Optional['Arc'] = None
 
 @dataclass
 class Transition:
     id: int
-    name: Optional['str'] = None
-    in_arcs: Optional[Arc] = None
-    out_arcs: Optional[Arc] = None
-    next: Optional['Transition'] = None
+    name: Optional[str] = None
+    in_arcs: List[Arc] = field(default_factory=list)  #%
+    out_arcs: List[Arc] = field(default_factory=list)  #%
     mu: float = 0.0  # Mean for Gaussian distribution
     sigma_squared: float = 1.0  # Variance for Gaussian distribution (sigma^2)
 
 class PetriNet:
     def __init__(self):
-        self.places = None
-        self.transitions = None
+        self.places = {}  #%
+        self.transitions = {}  #%
+        self.place_counter = 0  #%
+        self.transition_counter = 0  #%
         
     def list_tokens(self):
         """Print the tokens present in each place."""
-        p = self.places
-        while p:
+        for p in self.places.values():  #%
             print(f"Place {p.id} has {p.tokens} tokens")
-            p = p.next
         
     def new_place(self, id: int = None, name: str = None) -> Place:
-        """ 
-        Create a new place.
-        if places is None, place id = 0. Otherwise, traverse the linked list to the end and create a new place.
-        - If `id` is provided, use that as the place ID, otherwise auto-generate it.
-        - `name` can be provided for visualization purposes.
-        """
-        p = Place(id=id if id is not None else 0, name=name)
-        if self.places is None:
-            # Set the initial ID if none is provided
-            if id is None:
-                p.id = 0
-            self.places = p
-            return p
-        
-        tmp = self.places
-        if id is None:
-            p.id = 1
-            while tmp.next is not None:
-                tmp = tmp.next
-                p.id += 1
-        else:
-            p.id = id
-        tmp.next = p
+        """Create a new place."""
+        if id is None:  #%
+            id = self.place_counter  #%
+            self.place_counter += 1  #%
+        p = Place(id=id, name=name)
+        self.places[id] = p  #%
         return p
     
-    def new_transition(self, id: int = None, name: str = None , mu : float = 0, sigma_squared: float = 1) -> Transition:
-        """
-        Create a new transition.
-        - If `id` is provided, use that as the transition ID, otherwise auto-generate it.
-        - `name` can be provided for visualization purposes.
-        """
-        t = Transition(id=id if id is not None else 0, mu=mu, sigma_squared=sigma_squared, name=name)
-        if self.transitions is None:
-            # Set the initial ID if none is provided
-            if id is None:
-                t.id = 0
-            self.transitions = t
-            return t
-        
-        tmp = self.transitions
-        if id is None:
-            t.id = 1
-            while tmp.next is not None:
-                tmp = tmp.next
-                t.id += 1
-        else:
-            t.id = id
-        tmp.next = t
+    def new_transition(self, id: int = None, name: str = None, mu: float = 0, sigma_squared: float = 1) -> Transition:
+        """Create a new transition."""
+        if id is None:  #%
+            id = self.transition_counter  #%
+            self.transition_counter += 1  #%
+        t = Transition(id=id, mu=mu, sigma_squared=sigma_squared, name=name)
+        self.transitions[id] = t  #%
         return t
 
-    
     def connect_input(self, weight: int, place_id: int, transition_id: int):
-        t_curr = self.transitions
-        p_curr = self.places
-        
-        while t_curr and t_curr.id != transition_id:
-            t_curr = t_curr.next
-        while p_curr and p_curr.id != place_id:
-            p_curr = p_curr.next
-            
-        if not t_curr or not p_curr:
+        if transition_id not in self.transitions or place_id not in self.places:  #%
             print("Error: Invalid place or transition ID")
             return
-            
-        arc = Arc(weight=weight, place=p_curr)
-        arc.next = t_curr.in_arcs
-        t_curr.in_arcs = arc
-        
+
+        t_curr = self.transitions[transition_id]  #%
+        p_curr = self.places[place_id]  #%
+
+        t_curr.in_arcs.append(Arc(weight=weight, place=p_curr))  #%
+
     def connect_output(self, weight: int, place_id: int, transition_id: int):
-        t_curr = self.transitions
-        p_curr = self.places
-        
-        while t_curr and t_curr.id != transition_id:
-            t_curr = t_curr.next
-        while p_curr and p_curr.id != place_id:
-            p_curr = p_curr.next
-            
-        if not t_curr or not p_curr:
+        if transition_id not in self.transitions or place_id not in self.places:  #%
             print("Error: Invalid place or transition ID")
             return
-            
-        arc = Arc(weight=weight, place=p_curr)
-        arc.next = t_curr.out_arcs
-        t_curr.out_arcs = arc
-        
+
+        t_curr = self.transitions[transition_id]  #%
+        p_curr = self.places[place_id]  #%
+
+        t_curr.out_arcs.append(Arc(weight=weight, place=p_curr))  #%
+
     def place_tokens(self, place_id: int, tokens: int):
-        p_curr = self.places
-        while p_curr and p_curr.id != place_id:
-            p_curr = p_curr.next
-            
-        if not p_curr:
+        if place_id not in self.places:  #%
             print("Error: Invalid place ID")
             return
-            
-        p_curr.tokens = tokens
+        self.places[place_id].tokens = tokens  #%
+
     def place_name(self, place_id: int, name: str):
-        p_curr = self.places
-        while p_curr and p_curr.id != place_id:
-            p_curr = p_curr.next
-            
-        if not p_curr:
+        if place_id not in self.places:  #%
             print("Error: Invalid place ID")
             return
-            
-        p_curr.name = name
+        self.places[place_id].name = name  #%
+
     def transition_name(self, transition_id: int, name: str):
-        t_curr = self.transitions
-        while t_curr and t_curr.id != transition_id:
-            t_curr = t_curr.next
-            
-        if not t_curr:
+        if transition_id not in self.transitions:  #%
             print("Error: Invalid transition ID")
             return
-            
-        t_curr.name = name
-    
-        
-    def visualize(self, filename="petri_net", step=0):
-            dot = graphviz.Digraph(filename, engine='neato')
-            dot.attr(overlap='false')
-            dot.attr(fontsize='12')
-            dot.attr(label=f"PetriNet Model - Step {step}")
-            
-            # Add places with token count and name (in blue)
-            p = self.places
-            dot.attr('node', shape='circle', fixedsize='true', width='0.9', fontcolor='blue')
-            # dot.attr('node', shape='circle', fixedsize='true', width='1.9', fontcolor='blue')
-            state_vector = []
-            while p:
-                label = f'P{p.id}\nTokens: {p.tokens}'
-                if p.name:
-                    label += f'\nName: {p.name}'
-                dot.node(f'P{p.id}', label)
-                state_vector.append(p.tokens)
-                p = p.next
-            
-            # Add transitions with name (in blue)
-            t = self.transitions
-            dot.attr('node', shape='box', fontcolor='blue')
-            while t:
-                label = f'T{t.id}'
-                if t.name:
-                    label += f'\nName: {t.name}'
-                dot.node(f'T{t.id}', label)
-                
-                # Add input arcs
-                arc = t.in_arcs
-                while arc:
-                    dot.edge(f'P{arc.place.id}', f'T{t.id}', label=f'{arc.weight}')
-                    arc = arc.next
-                    
-                # Add output arcs
-                arc = t.out_arcs
-                while arc:
-                    dot.edge(f'T{t.id}', f'P{arc.place.id}', label=f'{arc.weight}')
-                    arc = arc.next
-                    
-                t = t.next
-            
-            filename_with_step = f"out/{filename}_step_{step}"
-            dot.render(filename_with_step, format='png', cleanup=True)
-            print(f"Graph rendered to {filename_with_step}.png with state vector: {state_vector}")
+        self.transitions[transition_id].name = name  #%
 
+    def visualize(self, filename="petri_net", step=0):
+        dot = graphviz.Digraph(filename, engine='neato')
+        dot.attr(overlap='false')
+        dot.attr(fontsize='12')
+        dot.attr(label=f"PetriNet Model - Step {step}")
+        
+        # Add places with token count and name (in blue)
+        dot.attr('node', shape='circle', fixedsize='true', width='0.9', fontcolor='blue')
+        state_vector = []
+        for p in self.places.values():  #%
+            label = f'P{p.id}\nTokens: {p.tokens}'
+            if p.name:
+                label += f'\nName: {p.name}'
+            dot.node(f'P{p.id}', label)
+            state_vector.append(p.tokens)
+        
+        # Add transitions with name (in blue)
+        dot.attr('node', shape='box', fontcolor='blue')
+        for t in self.transitions.values():  #%
+            label = f'T{t.id}'
+            if t.name:
+                label += f'\nName: {t.name}'
+            dot.node(f'T{t.id}', label)
+            
+            # Add input arcs
+            for arc in t.in_arcs:  #%
+                dot.edge(f'P{arc.place.id}', f'T{t.id}', label=f'{arc.weight}')
+                
+            # Add output arcs
+            for arc in t.out_arcs:  #%
+                dot.edge(f'T{t.id}', f'P{arc.place.id}', label=f'{arc.weight}')
+        
+        filename_with_step = f"out/{filename}_step_{step}"
+        dot.render(filename_with_step, format='png', cleanup=True)
+        print(f"Graph rendered to {filename_with_step}.png with state vector: {state_vector}")
 
     def is_firable(self, transition: Transition) -> bool:
         """Check if a transition can be fired (all input arcs have enough tokens)."""
-        arc = transition.in_arcs
-        while arc:
+        for arc in transition.in_arcs:  #%
             if arc.place.tokens < arc.weight:
-                return False  # Not enough tokens to fire
-            arc = arc.next
+                return False
         return True
 
     def fire(self, transition: Transition):
@@ -225,55 +147,44 @@ class PetriNet:
             return False
 
         # Consume input tokens
-        arc = transition.in_arcs
-        while arc:
-            if arc.place.tokens >= arc.weight:  # Double-check this condition
-                arc.place.tokens -= arc.weight
-            else:
-                print(f"Error: Not enough tokens in Place {arc.place.id}")
-                return False
-            arc = arc.next
+        for arc in transition.in_arcs:  #%
+            arc.place.tokens -= arc.weight
 
         # Produce output tokens
-        arc = transition.out_arcs
-        while arc:
+        for arc in transition.out_arcs:  #%
             arc.place.tokens += arc.weight
-            arc = arc.next
 
         print(f"Fired Transition T{transition.id}")
         return True
 
-    def run_simulation(self, iterations=10):
+    def run_simulation(self, iterations=10, visualize=False):  #%
         for i in range(iterations):
             print(f"\nIteration {i+1}:")
             self.list_tokens()
-            self.visualize(filename="petri_net_graph", step=i)
+            if visualize:  #%
+                self.visualize(filename="petri_net_graph", step=i)
 
             # Collect all firable transitions
-            t = self.transitions
-            firable_transitions = []
+            firable_transitions = []  #%
             gaussians = []  # Collect Gaussian parameters for firable transitions
-            while t:
+            for t in self.transitions.values():  #%
                 if self.is_firable(t):
                     firable_transitions.append(t)
-                    gaussians.append((t.mu, np.sqrt(t.sigma_squared)))  # Store (mean, std_dev)
-                t = t.next
+                    gaussians.append((t.mu, np.sqrt(t.sigma_squared)))  #%
 
             if not firable_transitions:
                 print("No transitions can be fired. Stopping simulation.")
                 break
 
             # Monte Carlo step using Gaussian distribution
-            # Generate a random index based on the Gaussian distribution for each transition
             probabilities = []
             for idx, (mu, sigma) in enumerate(gaussians):
                 # Generate a random value from a normal distribution and compute probability
                 random_val = np.random.normal(mu, sigma)
                 probabilities.append((random_val, idx))
             
-            # Sort based on the generated random values (higher preference for higher values)
-            probabilities.sort(reverse=True, key=lambda x: x[0])
-            selected_transition = firable_transitions[probabilities[0][1]]  # Select the transition with highest value
+            # Select the transition with the highest random value
+            selected_transition = firable_transitions[max(probabilities)[1]]  #%
 
             self.fire(selected_transition)
         print("Simulation completed.")
@@ -324,11 +235,11 @@ class PetriNet:
         )
         
         plt.show()
+
 def main():
     ## PARAM 
-    
-    iterations = 10
-    
+    iterations = 100
+    spf = 0.5
     ## END PARAM
     pn = PetriNet()
     
@@ -347,7 +258,7 @@ def main():
     pn.place_name(place_id=8, name="Out Shelf 1")
     pn.place_name(place_id=9, name="Out Shelf 2")
     
-    # all loop must have 1 token for the valid firing
+    # Initialize tokens
     pn.place_tokens(place_id=0, tokens=1)
     pn.place_tokens(place_id=2, tokens=1)
     pn.place_tokens(place_id=6, tokens=1)
@@ -356,63 +267,54 @@ def main():
     # Create 6 transitions
     for _ in range(6):
         pn.new_transition()
+        
     # Connect transitions with places
     # T0 TREE_RATE
-    ## waiting for delivery of wood
-    pn.connect_input(weight=1, place_id=0, transition_id=0)    # -1 token from P0
-    pn.connect_output(weight=1, place_id=0, transition_id=0)   # +1 tokens to P0
-    ## slice and into the buffer
-    pn.connect_output(weight=4, place_id=1, transition_id=0)   # +4 tokens to P1
+    pn.connect_input(weight=1, place_id=0, transition_id=0)
+    pn.connect_output(weight=1, place_id=0, transition_id=0)
+    pn.connect_output(weight=4, place_id=1, transition_id=0)
     
     # T1 SAW_TIME
-    ## from the big wood bugger
-    pn.connect_input(weight=1, place_id=1, transition_id=1)    # -1 token from P1
-    ## tool avalability
-    pn.connect_input(weight=1, place_id=2, transition_id=1)    # -1 token from P2
-    pn.connect_output(weight=1, place_id=2, transition_id=1)   # +1 tokens to P2
-    ## to planks buffer
-    pn.connect_output(weight=2, place_id=4, transition_id=1)   # +2 tokens to P3
-    pn.connect_output(weight=2, place_id=5, transition_id=1)   # +2 tokens to P4
+    pn.connect_input(weight=1, place_id=1, transition_id=1)
+    pn.connect_input(weight=1, place_id=2, transition_id=1)
+    pn.connect_output(weight=1, place_id=2, transition_id=1)
+    pn.connect_output(weight=2, place_id=4, transition_id=1)
+    pn.connect_output(weight=2, place_id=5, transition_id=1)
     
     # T2 BORROW_TOOL 
-    pn.connect_input(weight=1, place_id=2, transition_id=2)    # -1 token from P1
-    pn.connect_output(weight=1, place_id=3, transition_id=2)   # +2 tokens to P4
+    pn.connect_input(weight=1, place_id=2, transition_id=2)
+    pn.connect_output(weight=1, place_id=3, transition_id=2)
     
     # T3 RETURN_TOOL 
-    pn.connect_input(weight=1, place_id=3, transition_id=3)    # -1 token from P1
-    pn.connect_output(weight=1, place_id=2, transition_id=3)   # +2 tokens to P4
+    pn.connect_input(weight=1, place_id=3, transition_id=3)
+    pn.connect_output(weight=1, place_id=2, transition_id=3)
     
-    #* Parallel Shelving
     # T4 ASM_TIME_1
-    ## worker avalability
-    pn.connect_input(weight=1, place_id=6, transition_id=4)    # -1 token from P2
-    pn.connect_output(weight=1, place_id=6, transition_id=4)   # +1 tokens to P2
-    ## get planks from planks buffer
-    pn.connect_input(weight=3, place_id=4, transition_id=4)    # -3 tokens from P3
-    ## finsihed product
-    pn.connect_output(weight=1, place_id=8, transition_id=4)   # +3 tokens to P7
+    pn.connect_input(weight=1, place_id=6, transition_id=4)
+    pn.connect_output(weight=1, place_id=6, transition_id=4)
+    pn.connect_input(weight=3, place_id=4, transition_id=4)
+    pn.connect_output(weight=1, place_id=8, transition_id=4)
     
     # T5 ASM_TIME_1
-    ## worker avalability
-    pn.connect_input(weight=1, place_id=7, transition_id=5)    # -1 token from P2
-    pn.connect_output(weight=1, place_id=7, transition_id=5)   # +1 tokens to P2
-    ## get planks from planks buffer
-    pn.connect_input(weight=3, place_id=5, transition_id=5)    # -3 tokens from P3
-    ## finsihed product
-    pn.connect_output(weight=1, place_id=9, transition_id=5)   # +3 tokens to P7
-
+    pn.connect_input(weight=1, place_id=7, transition_id=5)
+    pn.connect_output(weight=1, place_id=7, transition_id=5)
+    pn.connect_input(weight=3, place_id=5, transition_id=5)
+    pn.connect_output(weight=1, place_id=9, transition_id=5)
     
     # Visualize initial state
     pn.visualize("petri_net_graph")
     
-    # Run simulation
-    pn.run_simulation(iterations=iterations)
+    # Run simulation without visualization in each step
+    pn.run_simulation(iterations=iterations, visualize=False)  #%
     
-    # Ensure output directory exists
+    # Optionally, visualize final state
+    pn.visualize("petri_net_graph_final")
+    
+    # If you need to animate, you can call the animate_petri_net method
     if not os.path.exists('out'):
         print("Please create 'out' directory and run the Petri net simulation first!")
     else:
-        pn.animate_petri_net(iterations=iterations)
+        pn.animate_petri_net(iterations=iterations, interval=spf*1000)
 
 if __name__ == "__main__":
     main()
